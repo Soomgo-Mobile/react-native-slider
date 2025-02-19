@@ -9,7 +9,7 @@ import {
   Easing,
   I18nManager,
 } from 'react-native';
-import { ViewPropTypes } from "deprecated-react-native-prop-types";
+import { ViewPropTypes, ImagePropTypes } from "deprecated-react-native-prop-types";
 import PropTypes from 'prop-types';
 
 const TRACK_SIZE = 4;
