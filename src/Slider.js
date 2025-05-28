@@ -1,15 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Animated,
-  Image,
-  StyleSheet,
-  PanResponder,
-  View,
-  Easing,
-  I18nManager,
-} from 'react-native';
+import { Animated, Image, StyleSheet, PanResponder, View, Easing, I18nManager } from 'react-native';
 import { ShadowedView } from 'react-native-fast-shadow';
-import { ViewPropTypes, ImagePropTypes } from "deprecated-react-native-prop-types";
+import { ViewPropTypes, ImagePropTypes } from 'deprecated-react-native-prop-types';
 import PropTypes from 'prop-types';
 
 const TRACK_SIZE = 4;
@@ -22,13 +14,8 @@ function Rect(x, y, width, height) {
   this.height = height;
 }
 
-Rect.prototype.containsPoint = function(x, y) {
-  return (
-    x >= this.x &&
-    y >= this.y &&
-    x <= this.x + this.width &&
-    y <= this.y + this.height
-  );
+Rect.prototype.containsPoint = function (x, y) {
+  return x >= this.x && y >= this.y && x <= this.x + this.width && y <= this.y + this.height;
 };
 
 const DEFAULT_ANIMATION_CONFIGS = {
@@ -43,7 +30,7 @@ const DEFAULT_ANIMATION_CONFIGS = {
   },
 };
 
-const Slider = (props) => {
+const Slider = props => {
   const {
     value: initialValue,
     disabled,
@@ -57,6 +44,7 @@ const Slider = (props) => {
     style,
     trackStyle,
     thumbStyle,
+    thumbShadow,
     debugTouchArea,
     onValueChange,
     onSlidingStart,
@@ -72,9 +60,9 @@ const Slider = (props) => {
   const [trackSize, setTrackSize] = useState({ width: 0, height: 0 });
   const [thumbSize, setThumbSize] = useState({ width: 0, height: 0 });
   const [allMeasured, setAllMeasured] = useState(false);
-  
+
   const value = useRef(new Animated.Value(initialValue)).current;
-  
+
   const _previousLeft = useRef(0);
   const _containerSize = useRef({ width: 0, height: 0 });
   const _trackSize = useRef({ width: 0, height: 0 });
@@ -82,28 +70,37 @@ const Slider = (props) => {
 
   const _getCurrentValue = useCallback(() => value.__getValue(), [value]);
 
-  const _fireChangeEvent = useCallback((event) => {
-    if (props[event]) {
-      props[event](_getCurrentValue());
-    }
-  }, [props, _getCurrentValue]);
-  
-  const _setCurrentValue = useCallback((newValue) => {
-    value.setValue(newValue);
-  }, [value]);
+  const _fireChangeEvent = useCallback(
+    event => {
+      if (props[event]) {
+        props[event](_getCurrentValue());
+      }
+    },
+    [props, _getCurrentValue]
+  );
 
-  const _setCurrentValueAnimated = useCallback((newValue) => {
-    const animType = animationType;
-    const animConfig = Object.assign(
-      {},
-      DEFAULT_ANIMATION_CONFIGS[animType],
-      providedAnimationConfig,
-      {
-        toValue: newValue,
-      },
-    );
-    Animated[animType](value, animConfig).start();
-  }, [animationType, providedAnimationConfig, value]);
+  const _setCurrentValue = useCallback(
+    newValue => {
+      value.setValue(newValue);
+    },
+    [value]
+  );
+
+  const _setCurrentValueAnimated = useCallback(
+    newValue => {
+      const animType = animationType;
+      const animConfig = Object.assign(
+        {},
+        DEFAULT_ANIMATION_CONFIGS[animType],
+        providedAnimationConfig,
+        {
+          toValue: newValue,
+        }
+      );
+      Animated[animType](value, animConfig).start();
+    },
+    [animationType, providedAnimationConfig, value]
+  );
 
   useEffect(() => {
     if (animateTransitions) {
@@ -113,84 +110,77 @@ const Slider = (props) => {
     }
   }, [initialValue, animateTransitions, _setCurrentValueAnimated, _setCurrentValue]);
 
-
-  const _getRatio = useCallback((val) =>
-    (val - minimumValue) / (maximumValue - minimumValue),
+  const _getRatio = useCallback(
+    val => (val - minimumValue) / (maximumValue - minimumValue),
     [minimumValue, maximumValue]
   );
 
-  const _getThumbLeft = useCallback((val) => {
-    const nonRtlRatio = _getRatio(val);
-    const ratio = I18nManager.isRTL ? 1 - nonRtlRatio : nonRtlRatio;
-    return (
-      ratio * (containerSize.width - thumbSize.width)
-    );
-  }, [_getRatio, containerSize.width, thumbSize.width]);
+  const _getThumbLeft = useCallback(
+    val => {
+      const nonRtlRatio = _getRatio(val);
+      const ratio = I18nManager.isRTL ? 1 - nonRtlRatio : nonRtlRatio;
+      return ratio * (containerSize.width - thumbSize.width);
+    },
+    [_getRatio, containerSize.width, thumbSize.width]
+  );
 
-  const _getValue = useCallback((gestureState) => {
-    const length = containerSize.width - thumbSize.width;
-    const thumbLeft = _previousLeft.current + gestureState.dx;
+  const _getValue = useCallback(
+    gestureState => {
+      const length = containerSize.width - thumbSize.width;
+      const thumbLeft = _previousLeft.current + gestureState.dx;
 
-    const nonRtlRatio = thumbLeft / length;
-    const ratio = I18nManager.isRTL ? 1 - nonRtlRatio : nonRtlRatio;
+      const nonRtlRatio = thumbLeft / length;
+      const ratio = I18nManager.isRTL ? 1 - nonRtlRatio : nonRtlRatio;
 
-    if (step) {
+      if (step) {
+        return Math.max(
+          minimumValue,
+          Math.min(
+            maximumValue,
+            minimumValue + Math.round((ratio * (maximumValue - minimumValue)) / step) * step
+          )
+        );
+      }
       return Math.max(
         minimumValue,
-        Math.min(
-          maximumValue,
-          minimumValue +
-            Math.round(
-              ratio *
-                (maximumValue - minimumValue) /
-                step,
-            ) *
-              step,
-        ),
+        Math.min(maximumValue, ratio * (maximumValue - minimumValue) + minimumValue)
       );
-    }
-    return Math.max(
-      minimumValue,
-      Math.min(
-        maximumValue,
-        ratio * (maximumValue - minimumValue) +
-          minimumValue,
-      ),
-    );
-  }, [containerSize.width, thumbSize.width, minimumValue, maximumValue, step]);
+    },
+    [containerSize.width, thumbSize.width, minimumValue, maximumValue, step]
+  );
 
   const _handlePanResponderGrant = useCallback(() => {
     _previousLeft.current = _getThumbLeft(_getCurrentValue());
     _fireChangeEvent('onSlidingStart');
   }, [_getThumbLeft, _getCurrentValue, _fireChangeEvent]);
 
-  const _handlePanResponderMove = useCallback((e, gestureState) => {
-    if (disabled) {
-      return;
-    }
-    _setCurrentValue(_getValue(gestureState));
-    _fireChangeEvent('onValueChange');
-  }, [disabled, _setCurrentValue, _getValue, _fireChangeEvent]);
+  const _handlePanResponderMove = useCallback(
+    (e, gestureState) => {
+      if (disabled) {
+        return;
+      }
+      _setCurrentValue(_getValue(gestureState));
+      _fireChangeEvent('onValueChange');
+    },
+    [disabled, _setCurrentValue, _getValue, _fireChangeEvent]
+  );
 
-  const _handlePanResponderEnd = useCallback((e, gestureState) => {
-    if (disabled) {
-      return;
-    }
-    _setCurrentValue(_getValue(gestureState));
-    _fireChangeEvent('onSlidingComplete');
-  }, [disabled, _setCurrentValue, _getValue, _fireChangeEvent]);
-  
+  const _handlePanResponderEnd = useCallback(
+    (e, gestureState) => {
+      if (disabled) {
+        return;
+      }
+      _setCurrentValue(_getValue(gestureState));
+      _fireChangeEvent('onSlidingComplete');
+    },
+    [disabled, _setCurrentValue, _getValue, _fireChangeEvent]
+  );
+
   const _getTouchOverflowSize = useCallback(() => {
     const size = {};
     if (allMeasured) {
-      size.width = Math.max(
-        0,
-        thumbTouchSize.width - _thumbSize.current.width,
-      );
-      size.height = Math.max(
-        0,
-        thumbTouchSize.height - _containerSize.current.height,
-      );
+      size.width = Math.max(0, thumbTouchSize.width - _thumbSize.current.width);
+      size.height = Math.max(0, thumbTouchSize.height - _containerSize.current.height);
     }
     return size;
   }, [allMeasured, thumbTouchSize, _thumbSize, _containerSize]);
@@ -201,29 +191,37 @@ const Slider = (props) => {
       touchOverflowSize.width / 2 +
         _getThumbLeft(_getCurrentValue()) +
         (_thumbSize.current.width - thumbTouchSize.width) / 2,
-      touchOverflowSize.height / 2 +
-        (_containerSize.current.height - thumbTouchSize.height) / 2,
+      touchOverflowSize.height / 2 + (_containerSize.current.height - thumbTouchSize.height) / 2,
       thumbTouchSize.width,
-      thumbTouchSize.height,
+      thumbTouchSize.height
     );
-  }, [_getTouchOverflowSize, _getThumbLeft, _getCurrentValue, _thumbSize, _containerSize, thumbTouchSize]);
+  }, [
+    _getTouchOverflowSize,
+    _getThumbLeft,
+    _getCurrentValue,
+    _thumbSize,
+    _containerSize,
+    thumbTouchSize,
+  ]);
 
-  const _thumbHitTest = useCallback((e) => {
-    const nativeEvent = e.nativeEvent;
-    const thumbTouchRect = _getThumbTouchRect();
-    return thumbTouchRect.containsPoint(
-      nativeEvent.locationX,
-      nativeEvent.locationY,
-    );
-  }, [_getThumbTouchRect]);
+  const _thumbHitTest = useCallback(
+    e => {
+      const nativeEvent = e.nativeEvent;
+      const thumbTouchRect = _getThumbTouchRect();
+      return thumbTouchRect.containsPoint(nativeEvent.locationX, nativeEvent.locationY);
+    },
+    [_getThumbTouchRect]
+  );
 
-  const _handleStartShouldSetPanResponder = useCallback((e) => {
-    return _thumbHitTest(e);
-  }, [_thumbHitTest]);
+  const _handleStartShouldSetPanResponder = useCallback(
+    e => {
+      return _thumbHitTest(e);
+    },
+    [_thumbHitTest]
+  );
 
   const _handleMoveShouldSetPanResponder = useCallback(() => false, []);
   const _handlePanResponderRequestEnd = useCallback(() => false, []);
-
 
   const panResponder = useRef(
     PanResponder.create({
@@ -236,12 +234,13 @@ const Slider = (props) => {
       onPanResponderTerminate: _handlePanResponderEnd,
     })
   ).current;
-  
+
   const _handleMeasure = useCallback((name, x) => {
     const { width, height } = x.nativeEvent.layout;
     const size = { width, height };
 
-    const storeNameRef = name === 'containerSize' ? _containerSize : (name === 'trackSize' ? _trackSize : _thumbSize);
+    const storeNameRef =
+      name === 'containerSize' ? _containerSize : name === 'trackSize' ? _trackSize : _thumbSize;
     storeNameRef.current = size;
 
     if (_containerSize.current.width && _trackSize.current.width && _thumbSize.current.width) {
@@ -252,11 +251,9 @@ const Slider = (props) => {
     }
   }, []);
 
-
-  const _measureContainer = useCallback((x) => _handleMeasure('containerSize', x), [_handleMeasure]);
-  const _measureTrack = useCallback((x) => _handleMeasure('trackSize', x), [_handleMeasure]);
-  const _measureThumb = useCallback((x) => _handleMeasure('thumbSize', x), [_handleMeasure]);
-
+  const _measureContainer = useCallback(x => _handleMeasure('containerSize', x), [_handleMeasure]);
+  const _measureTrack = useCallback(x => _handleMeasure('trackSize', x), [_handleMeasure]);
+  const _measureThumb = useCallback(x => _handleMeasure('thumbSize', x), [_handleMeasure]);
 
   const mainStyles = props.styles || defaultStyles; // props.styles is not in propTypes
   const thumbLeft = value.interpolate({
@@ -281,7 +278,7 @@ const Slider = (props) => {
     backgroundColor: minimumTrackTintColor,
     ...valueVisibleStyle,
   };
-  
+
   const _getTouchOverflowStyle = useCallback(() => {
     const { width, height } = _getTouchOverflowSize();
     const touchOverflowStyle = {};
@@ -302,7 +299,6 @@ const Slider = (props) => {
     return touchOverflowStyle;
   }, [_getTouchOverflowSize, debugTouchArea]);
 
-
   const touchOverflowStyle = _getTouchOverflowStyle();
 
   const _renderThumbImage = useCallback(() => {
@@ -310,36 +306,31 @@ const Slider = (props) => {
     return <Image source={thumbImage} />;
   }, [thumbImage]);
 
-  const _renderDebugThumbTouchRect = useCallback((minTrackWidth) => { // minTrackWidth is not used
-    const rect = _getThumbTouchRect();
-    const positionStyle = {
-      left: thumbLeft, // This should be rect.x or calculated based on current value
-      top: rect.y,
-      width: rect.width,
-      height: rect.height,
-    };
+  const _renderDebugThumbTouchRect = useCallback(
+    minTrackWidth => {
+      // minTrackWidth is not used
+      const rect = _getThumbTouchRect();
+      const positionStyle = {
+        left: thumbLeft, // This should be rect.x or calculated based on current value
+        top: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
 
-    return (
-      <Animated.View
-        style={[defaultStyles.debugThumbTouchArea, positionStyle]}
-        pointerEvents="none"
-      />
-    );
-  }, [_getThumbTouchRect, thumbLeft]);
-
+      return (
+        <Animated.View
+          style={[defaultStyles.debugThumbTouchArea, positionStyle]}
+          pointerEvents="none"
+        />
+      );
+    },
+    [_getThumbTouchRect, thumbLeft]
+  );
 
   return (
-    <View
-      {...other}
-      style={[mainStyles.container, style]}
-      onLayout={_measureContainer}
-    >
+    <View {...other} style={[mainStyles.container, style]} onLayout={_measureContainer}>
       <View
-        style={[
-          { backgroundColor: maximumTrackTintColor },
-          mainStyles.track,
-          trackStyle,
-        ]}
+        style={[{ backgroundColor: maximumTrackTintColor }, mainStyles.track, trackStyle]}
         renderToHardwareTextureAndroid // This prop is not available in View
         onLayout={_measureTrack}
       />
@@ -348,28 +339,25 @@ const Slider = (props) => {
         style={[mainStyles.track, trackStyle, minimumTrackStyle]}
       />
       <ShadowedView
-        style={{
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.35,
-          shadowRadius: 2,
-          ...StyleSheet.flatten([
-            { backgroundColor: thumbTintColor },
-            mainStyles.thumb,
-            thumbStyle,
-            valueVisibleStyle,
-          ]),
-          transform: [{ translateX: thumbLeft }, { translateY: 0 }],
-        }}
+        style={StyleSheet.flatten([
+          thumbShadow,
+          { backgroundColor: thumbTintColor },
+          mainStyles.thumb,
+          thumbStyle,
+          valueVisibleStyle,
+          {
+            transform: [{ translateX: thumbLeft }, { translateY: 0 }],
+          },
+        ])}
       >
         <Animated.View
           onLayout={_measureThumb}
-          renderToHardwareTextureAndroid // This prop is not available in View
-          style={[
+          renderToHardwareTextureAndroid
+          style={StyleSheet.flatten([
             { backgroundColor: thumbTintColor },
             mainStyles.thumb,
             thumbStyle,
-          ]}
+          ])}
         >
           {_renderThumbImage()}
         </Animated.View>
@@ -379,8 +367,7 @@ const Slider = (props) => {
         style={[defaultStyles.touchArea, touchOverflowStyle]}
         {...panResponder.panHandlers}
       >
-        {debugTouchArea === true &&
-          _renderDebugThumbTouchRect(minimumTrackWidth)}
+        {debugTouchArea === true && _renderDebugThumbTouchRect(minimumTrackWidth)}
       </View>
     </View>
   );
@@ -405,6 +392,7 @@ Slider.propTypes = {
   style: ViewPropTypes.style,
   trackStyle: ViewPropTypes.style,
   thumbStyle: ViewPropTypes.style,
+  thumbShadow: ViewPropTypes.style,
   thumbImage: ImagePropTypes.source,
   debugTouchArea: PropTypes.bool,
   animateTransitions: PropTypes.bool,
