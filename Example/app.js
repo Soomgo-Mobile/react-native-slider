@@ -180,10 +180,10 @@ var iosStyles = StyleSheet.create({
     height: 30,
     borderRadius: 30 / 2,
     backgroundColor: 'white',
-    shadowColor: 'black',
-    shadowOffset: {width: 0, height: 2},
-    shadowRadius: 2,
-    shadowOpacity: 0.35,
+    // shadowColor: 'black',
+    // shadowOffset: {width: 0, height: 2},
+    // shadowRadius: 2,
+    // shadowOpacity: 0.35,
   }
 });
 
@@ -233,10 +233,10 @@ var customStyles4 = StyleSheet.create({
     borderColor: '#a4126e',
     borderWidth: 5,
     borderRadius: 10,
-    shadowColor: 'black',
-    shadowOffset: {width: 0, height: 2},
-    shadowRadius: 2,
-    shadowOpacity: 0.35,
+    // shadowColor: 'black',
+    // shadowOffset: {width: 0, height: 2},
+    // shadowRadius: 2,
+    // shadowOpacity: 0.35,
   }
 });
 
@@ -300,10 +300,10 @@ var customStyles8 = StyleSheet.create({
     height: 10,
     backgroundColor: '#31a4db',
     borderRadius: 10 / 2,
-    shadowColor: '#31a4db',
-    shadowOffset: {width: 0, height: 0},
-    shadowRadius: 2,
-    shadowOpacity: 1,
+    // shadowColor: '#31a4db',
+    // shadowOffset: {width: 0, height: 0},
+    // shadowRadius: 2,
+    // shadowOpacity: 1,
   }
 });
 
@@ -311,10 +311,10 @@ var customStyles9 = StyleSheet.create({
   thumb: {
     width: 30,
     height: 30,
-    shadowColor: 'black',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.5,
-    shadowRadius: 1,
+    // shadowColor: 'black',
+    // shadowOffset: {width: 0, height: 1},
+    // shadowOpacity: 0.5,
+    // shadowRadius: 1,
   }
 });
 

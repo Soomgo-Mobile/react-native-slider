@@ -9,6 +9,7 @@ import {
   Easing,
   I18nManager,
 } from 'react-native';
+import { ShadowedView } from 'react-native-fast-shadow';
 import { ViewPropTypes, ImagePropTypes } from "deprecated-react-native-prop-types";
 import PropTypes from 'prop-types';
 
@@ -285,21 +286,41 @@ export default class Slider extends PureComponent {
           renderToHardwareTextureAndroid
           style={[mainStyles.track, trackStyle, minimumTrackStyle]}
         />
-        <Animated.View
-          onLayout={this._measureThumb}
-          renderToHardwareTextureAndroid
-          style={[
-            { backgroundColor: thumbTintColor },
-            mainStyles.thumb,
-            thumbStyle,
-            {
-              transform: [{ translateX: thumbLeft }, { translateY: 0 }],
-              ...valueVisibleStyle,
-            },
-          ]}
+        <ShadowedView
+          style={{
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.35,
+            shadowRadius: 2,
+            // We need to pass the thumb's style to ShadowedView
+            // for it to calculate the shadow correctly, especially borderRadius.
+            // However, we must exclude transform from it as it should apply to the Animated.View
+            ...StyleSheet.flatten([
+              { backgroundColor: thumbTintColor },
+              mainStyles.thumb,
+              thumbStyle,
+              valueVisibleStyle,
+            ]),
+            transform: [{ translateX: thumbLeft }, { translateY: 0 }],
+          }}
         >
-          {this._renderThumbImage()}
-        </Animated.View>
+          <Animated.View
+            onLayout={this._measureThumb}
+            renderToHardwareTextureAndroid
+            style={[
+              // backgroundColor should be part of the Animated.View for the thumb itself
+              // position, width, height, borderRadius are used by ShadowedView, but also needed here
+              // for layout and image rendering if any.
+              { backgroundColor: thumbTintColor },
+              mainStyles.thumb,
+              thumbStyle,
+              // We remove transform from here as it's now applied to ShadowedView
+              // valueVisibleStyle is also applied to ShadowedView container
+            ]}
+          >
+            {this._renderThumbImage()}
+          </Animated.View>
+        </ShadowedView>
         <View
           renderToHardwareTextureAndroid
           style={[defaultStyles.touchArea, touchOverflowStyle]}
@@ -579,6 +600,7 @@ var defaultStyles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
+    // No specific shadow properties were here to remove
   },
   touchArea: {
     position: 'absolute',
