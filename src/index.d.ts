@@ -1,6 +1,6 @@
 declare module 'react-native-slider' {
-  import type { ComponentClass } from 'react';
   import type { ImageSourcePropType, StyleProp, ViewStyle, Animated } from 'react-native';
+  import type { ComponentType } from 'react';
 
   type SpringAnimationConfig = Animated.SpringAnimationConfig;
   type TimingAnimationConfig = Animated.TimingAnimationConfig;
@@ -138,6 +138,6 @@ declare module 'react-native-slider' {
     animationConfig?: SpringAnimationConfig | TimingAnimationConfig;
   };
 
-  const Slider: ComponentClass<SliderProps>;
+  const Slider: ComponentType<SliderProps>;
   export default Slider;
 }
