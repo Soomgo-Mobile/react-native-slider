@@ -6,9 +6,7 @@
   "ecmaFeatures": {
     "jsx": true
   },
-  "plugins": [
-    "react"
-  ],
+  "plugins": ["react", "@typescript-eslint"],
   "globals": {
     "__DEV__": true,
     "__dirname": false,
@@ -40,31 +38,33 @@
     "pit": false
   },
   "rules": {
-    "indent": [
-      2,
-      2
-    ],
-    "quotes": [
-      2,
-      "single",
-      "avoid-escape"
-    ],
-    "linebreak-style": [
-      2,
-      "unix"
-    ],
-    "semi": [
-      2,
-      "always"
-    ],
-    "strict": [
-      2,
-      "global"
-    ],
+    "indent": [2, 2],
+    "quotes": [2, "single", "avoid-escape"],
+    "linebreak-style": [2, "unix"],
+    "semi": [2, "always"],
+    "strict": [2, "global"],
     "global-strict": 0,
     "no-use-before-define": 0,
     "comma-dangle": 0,
     "no-underscore-dangle": 0,
     "eol-last": 1
-  }
+  },
+  "overrides": [
+    {
+      "files": ["*.d.ts"],
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "ecmaVersion": 2018,
+        "sourceType": "module",
+        "project": "./tsconfig.json"
+      },
+      "rules": {
+        "no-undef": "off",
+        "no-unused-vars": "off",
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-namespace": "off",
+        "@typescript-eslint/ban-types": "off"
+      }
+    }
+  ]
 }

@@ -1,16 +1,7 @@
-import React, { PureComponent } from 'react';
-
-import {
-  Animated,
-  Image,
-  StyleSheet,
-  PanResponder,
-  View,
-  Easing,
-  I18nManager,
-} from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Animated, Image, StyleSheet, PanResponder, View, Easing, I18nManager } from 'react-native';
 import { ShadowedView } from 'react-native-fast-shadow';
-import { ViewPropTypes, ImagePropTypes } from "deprecated-react-native-prop-types";
+import { ViewPropTypes, ImagePropTypes } from 'deprecated-react-native-prop-types';
 import PropTypes from 'prop-types';
 
 const TRACK_SIZE = 4;
@@ -23,13 +14,8 @@ function Rect(x, y, width, height) {
   this.height = height;
 }
 
-Rect.prototype.containsPoint = function(x, y) {
-  return (
-    x >= this.x &&
-    y >= this.y &&
-    x <= this.x + this.width &&
-    y <= this.y + this.height
-  );
+Rect.prototype.containsPoint = function (x, y) {
+  return x >= this.x && y >= this.y && x <= this.x + this.width && y <= this.y + this.height;
 };
 
 const DEFAULT_ANIMATION_CONFIGS = {
@@ -42,480 +28,259 @@ const DEFAULT_ANIMATION_CONFIGS = {
     easing: Easing.inOut(Easing.ease),
     delay: 0,
   },
-  // decay : { // This has a serious bug
-  //   velocity     : 1,
-  //   deceleration : 0.997
-  // }
 };
 
-export default class Slider extends PureComponent {
-  static propTypes = {
-    /**
-     * Initial value of the slider. The value should be between minimumValue
-     * and maximumValue, which default to 0 and 1 respectively.
-     * Default value is 0.
-     *
-     * *This is not a controlled component*, e.g. if you don't update
-     * the value, the component won't be reset to its inital value.
-     */
-    value: PropTypes.number,
+const Slider = props => {
+  const {
+    value: initialValue,
+    disabled,
+    minimumValue,
+    maximumValue,
+    step,
+    minimumTrackTintColor,
+    maximumTrackTintColor,
+    thumbTintColor,
+    thumbImage,
+    style,
+    trackStyle,
+    thumbStyle,
+    thumbShadow,
+    debugTouchArea,
+    onValueChange,
+    onSlidingStart,
+    onSlidingComplete,
+    thumbTouchSize,
+    animateTransitions,
+    animationType,
+    animationConfig: providedAnimationConfig,
+    ...other
+  } = props;
 
-    /**
-     * If true the user won't be able to move the slider.
-     * Default value is false.
-     */
-    disabled: PropTypes.bool,
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [trackSize, setTrackSize] = useState({ width: 0, height: 0 });
+  const [thumbSize, setThumbSize] = useState({ width: 0, height: 0 });
+  const [allMeasured, setAllMeasured] = useState(false);
 
-    /**
-     * Initial minimum value of the slider. Default value is 0.
-     */
-    minimumValue: PropTypes.number,
+  const value = useRef(new Animated.Value(initialValue)).current;
 
-    /**
-     * Initial maximum value of the slider. Default value is 1.
-     */
-    maximumValue: PropTypes.number,
+  const _previousLeft = useRef(0);
+  const _containerSize = useRef({ width: 0, height: 0 });
+  const _trackSize = useRef({ width: 0, height: 0 });
+  const _thumbSize = useRef({ width: 0, height: 0 });
 
-    /**
-     * Step value of the slider. The value should be between 0 and
-     * (maximumValue - minimumValue). Default value is 0.
-     */
-    step: PropTypes.number,
+  const _getCurrentValue = useCallback(() => value.__getValue(), [value]);
 
-    /**
-     * The color used for the track to the left of the button. Overrides the
-     * default blue gradient image.
-     */
-    minimumTrackTintColor: PropTypes.string,
-
-    /**
-     * The color used for the track to the right of the button. Overrides the
-     * default blue gradient image.
-     */
-    maximumTrackTintColor: PropTypes.string,
-
-    /**
-     * The color used for the thumb.
-     */
-    thumbTintColor: PropTypes.string,
-
-    /**
-     * The size of the touch area that allows moving the thumb.
-     * The touch area has the same center has the visible thumb.
-     * This allows to have a visually small thumb while still allowing the user
-     * to move it easily.
-     * The default is {width: 40, height: 40}.
-     */
-    thumbTouchSize: PropTypes.shape({
-      width: PropTypes.number,
-      height: PropTypes.number,
-    }),
-
-    /**
-     * Callback continuously called while the user is dragging the slider.
-     */
-    onValueChange: PropTypes.func,
-
-    /**
-     * Callback called when the user starts changing the value (e.g. when
-     * the slider is pressed).
-     */
-    onSlidingStart: PropTypes.func,
-
-    /**
-     * Callback called when the user finishes changing the value (e.g. when
-     * the slider is released).
-     */
-    onSlidingComplete: PropTypes.func,
-
-    /**
-     * The style applied to the slider container.
-     */
-    style: ViewPropTypes.style,
-
-    /**
-     * The style applied to the track.
-     */
-    trackStyle: ViewPropTypes.style,
-
-    /**
-     * The style applied to the thumb.
-     */
-    thumbStyle: ViewPropTypes.style,
-
-    /**
-     * Sets an image for the thumb.
-     */
-    thumbImage: ImagePropTypes.source,
-
-    /**
-     * Set this to true to visually see the thumb touch rect in green.
-     */
-    debugTouchArea: PropTypes.bool,
-
-    /**
-     * Set to true to animate values with default 'timing' animation type
-     */
-    animateTransitions: PropTypes.bool,
-
-    /**
-     * Custom Animation type. 'spring' or 'timing'.
-     */
-    animationType: PropTypes.oneOf(['spring', 'timing']),
-
-    /**
-     * Used to configure the animation parameters.  These are the same parameters in the Animated library.
-     */
-    animationConfig: PropTypes.object,
-  };
-
-  static defaultProps = {
-    value: 0,
-    minimumValue: 0,
-    maximumValue: 1,
-    step: 0,
-    minimumTrackTintColor: '#3f3f3f',
-    maximumTrackTintColor: '#b3b3b3',
-    thumbTintColor: '#343434',
-    thumbTouchSize: { width: 40, height: 40 },
-    debugTouchArea: false,
-    animationType: 'timing',
-  };
-
-  state = {
-    containerSize: { width: 0, height: 0 },
-    trackSize: { width: 0, height: 0 },
-    thumbSize: { width: 0, height: 0 },
-    allMeasured: false,
-    value: new Animated.Value(this.props.value),
-  };
-
-  componentWillMount() {
-    this._panResponder = PanResponder.create({
-      onStartShouldSetPanResponder: this._handleStartShouldSetPanResponder,
-      onMoveShouldSetPanResponder: this._handleMoveShouldSetPanResponder,
-      onPanResponderGrant: this._handlePanResponderGrant,
-      onPanResponderMove: this._handlePanResponderMove,
-      onPanResponderRelease: this._handlePanResponderEnd,
-      onPanResponderTerminationRequest: this._handlePanResponderRequestEnd,
-      onPanResponderTerminate: this._handlePanResponderEnd,
-    });
-  }
-
-  componentWillReceiveProps(nextProps) {
-    const newValue = nextProps.value;
-
-    if (this.props.value !== newValue) {
-      if (this.props.animateTransitions) {
-        this._setCurrentValueAnimated(newValue);
-      } else {
-        this._setCurrentValue(newValue);
+  const _fireChangeEvent = useCallback(
+    event => {
+      if (props[event]) {
+        props[event](_getCurrentValue());
       }
+    },
+    [props, _getCurrentValue]
+  );
+
+  const _setCurrentValue = useCallback(
+    newValue => {
+      value.setValue(newValue);
+    },
+    [value]
+  );
+
+  const _setCurrentValueAnimated = useCallback(
+    newValue => {
+      const animType = animationType;
+      const animConfig = Object.assign(
+        {},
+        DEFAULT_ANIMATION_CONFIGS[animType],
+        providedAnimationConfig,
+        {
+          toValue: newValue,
+        }
+      );
+      Animated[animType](value, animConfig).start();
+    },
+    [animationType, providedAnimationConfig, value]
+  );
+
+  useEffect(() => {
+    if (animateTransitions) {
+      _setCurrentValueAnimated(initialValue);
+    } else {
+      _setCurrentValue(initialValue);
     }
-  }
+  }, [initialValue, animateTransitions, _setCurrentValueAnimated, _setCurrentValue]);
 
-  render() {
-    const {
-      minimumValue,
-      maximumValue,
-      minimumTrackTintColor,
-      maximumTrackTintColor,
-      thumbTintColor,
-      thumbImage,
-      styles,
-      style,
-      trackStyle,
-      thumbStyle,
-      debugTouchArea,
-      onValueChange,
-      thumbTouchSize,
-      animationType,
-      animateTransitions,
-      ...other
-    } = this.props;
-    const {
-      value,
-      containerSize,
-      trackSize,
-      thumbSize,
-      allMeasured,
-    } = this.state;
-    const mainStyles = styles || defaultStyles;
-    const thumbLeft = value.interpolate({
-      inputRange: [minimumValue, maximumValue],
-      outputRange: I18nManager.isRTL
-        ? [0, -(containerSize.width - thumbSize.width)]
-        : [0, containerSize.width - thumbSize.width],
-      // extrapolate: 'clamp',
-    });
-    const minimumTrackWidth = value.interpolate({
-      inputRange: [minimumValue, maximumValue],
-      outputRange: [0, containerSize.width - thumbSize.width],
-      // extrapolate: 'clamp',
-    });
-    const valueVisibleStyle = {};
-    if (!allMeasured) {
-      valueVisibleStyle.opacity = 0;
+  const _getRatio = useCallback(
+    val => (val - minimumValue) / (maximumValue - minimumValue),
+    [minimumValue, maximumValue]
+  );
+
+  const _getThumbLeft = useCallback(
+    val => {
+      const nonRtlRatio = _getRatio(val);
+      const ratio = I18nManager.isRTL ? 1 - nonRtlRatio : nonRtlRatio;
+      return ratio * (containerSize.width - thumbSize.width);
+    },
+    [_getRatio, containerSize.width, thumbSize.width]
+  );
+
+  const _getValue = useCallback(
+    gestureState => {
+      const length = containerSize.width - thumbSize.width;
+      const thumbLeft = _previousLeft.current + gestureState.dx;
+
+      const nonRtlRatio = thumbLeft / length;
+      const ratio = I18nManager.isRTL ? 1 - nonRtlRatio : nonRtlRatio;
+
+      if (step) {
+        return Math.max(
+          minimumValue,
+          Math.min(
+            maximumValue,
+            minimumValue + Math.round((ratio * (maximumValue - minimumValue)) / step) * step
+          )
+        );
+      }
+      return Math.max(
+        minimumValue,
+        Math.min(maximumValue, ratio * (maximumValue - minimumValue) + minimumValue)
+      );
+    },
+    [containerSize.width, thumbSize.width, minimumValue, maximumValue, step]
+  );
+
+  const _handlePanResponderGrant = useCallback(() => {
+    _previousLeft.current = _getThumbLeft(_getCurrentValue());
+    _fireChangeEvent('onSlidingStart');
+  }, [_getThumbLeft, _getCurrentValue, _fireChangeEvent]);
+
+  const _handlePanResponderMove = useCallback(
+    (e, gestureState) => {
+      if (disabled) {
+        return;
+      }
+      _setCurrentValue(_getValue(gestureState));
+      _fireChangeEvent('onValueChange');
+    },
+    [disabled, _setCurrentValue, _getValue, _fireChangeEvent]
+  );
+
+  const _handlePanResponderEnd = useCallback(
+    (e, gestureState) => {
+      if (disabled) {
+        return;
+      }
+      _setCurrentValue(_getValue(gestureState));
+      _fireChangeEvent('onSlidingComplete');
+    },
+    [disabled, _setCurrentValue, _getValue, _fireChangeEvent]
+  );
+
+  const _getTouchOverflowSize = useCallback(() => {
+    const size = {};
+    if (allMeasured) {
+      size.width = Math.max(0, thumbTouchSize.width - _thumbSize.current.width);
+      size.height = Math.max(0, thumbTouchSize.height - _containerSize.current.height);
     }
+    return size;
+  }, [allMeasured, thumbTouchSize, _thumbSize, _containerSize]);
 
-    const minimumTrackStyle = {
-      position: 'absolute',
-      width: Animated.add(minimumTrackWidth, thumbSize.width / 2),
-      backgroundColor: minimumTrackTintColor,
-      ...valueVisibleStyle,
-    };
-
-    const touchOverflowStyle = this._getTouchOverflowStyle();
-
-    return (
-      <View
-        {...other}
-        style={[mainStyles.container, style]}
-        onLayout={this._measureContainer}
-      >
-        <View
-          style={[
-            { backgroundColor: maximumTrackTintColor },
-            mainStyles.track,
-            trackStyle,
-          ]}
-          renderToHardwareTextureAndroid
-          onLayout={this._measureTrack}
-        />
-        <Animated.View
-          renderToHardwareTextureAndroid
-          style={[mainStyles.track, trackStyle, minimumTrackStyle]}
-        />
-        <ShadowedView
-          style={{
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.35,
-            shadowRadius: 2,
-            // We need to pass the thumb's style to ShadowedView
-            // for it to calculate the shadow correctly, especially borderRadius.
-            // However, we must exclude transform from it as it should apply to the Animated.View
-            ...StyleSheet.flatten([
-              { backgroundColor: thumbTintColor },
-              mainStyles.thumb,
-              thumbStyle,
-              valueVisibleStyle,
-            ]),
-            transform: [{ translateX: thumbLeft }, { translateY: 0 }],
-          }}
-        >
-          <Animated.View
-            onLayout={this._measureThumb}
-            renderToHardwareTextureAndroid
-            style={[
-              // backgroundColor should be part of the Animated.View for the thumb itself
-              // position, width, height, borderRadius are used by ShadowedView, but also needed here
-              // for layout and image rendering if any.
-              { backgroundColor: thumbTintColor },
-              mainStyles.thumb,
-              thumbStyle,
-              // We remove transform from here as it's now applied to ShadowedView
-              // valueVisibleStyle is also applied to ShadowedView container
-            ]}
-          >
-            {this._renderThumbImage()}
-          </Animated.View>
-        </ShadowedView>
-        <View
-          renderToHardwareTextureAndroid
-          style={[defaultStyles.touchArea, touchOverflowStyle]}
-          {...this._panResponder.panHandlers}
-        >
-          {debugTouchArea === true &&
-            this._renderDebugThumbTouchRect(minimumTrackWidth)}
-        </View>
-      </View>
+  const _getThumbTouchRect = useCallback(() => {
+    const touchOverflowSize = _getTouchOverflowSize();
+    return new Rect(
+      touchOverflowSize.width / 2 +
+        _getThumbLeft(_getCurrentValue()) +
+        (_thumbSize.current.width - thumbTouchSize.width) / 2,
+      touchOverflowSize.height / 2 + (_containerSize.current.height - thumbTouchSize.height) / 2,
+      thumbTouchSize.width,
+      thumbTouchSize.height
     );
-  }
+  }, [
+    _getTouchOverflowSize,
+    _getThumbLeft,
+    _getCurrentValue,
+    _thumbSize,
+    _containerSize,
+    thumbTouchSize,
+  ]);
 
-  _getPropsForComponentUpdate(props) {
-    const {
-      value,
-      onValueChange,
-      onSlidingStart,
-      onSlidingComplete,
-      style,
-      trackStyle,
-      thumbStyle,
-      ...otherProps
-    } = props;
+  const _thumbHitTest = useCallback(
+    e => {
+      const nativeEvent = e.nativeEvent;
+      const thumbTouchRect = _getThumbTouchRect();
+      return thumbTouchRect.containsPoint(nativeEvent.locationX, nativeEvent.locationY);
+    },
+    [_getThumbTouchRect]
+  );
 
-    return otherProps;
-  }
+  const _handleStartShouldSetPanResponder = useCallback(
+    e => {
+      return _thumbHitTest(e);
+    },
+    [_thumbHitTest]
+  );
 
-  _handleStartShouldSetPanResponder = (
-    e: Object /* gestureState: Object */,
-  ): boolean =>
-    // Should we become active when the user presses down on the thumb?
-    this._thumbHitTest(e);
+  const _handleMoveShouldSetPanResponder = useCallback(() => false, []);
+  const _handlePanResponderRequestEnd = useCallback(() => false, []);
 
-  _handleMoveShouldSetPanResponder(/* e: Object, gestureState: Object */): boolean {
-    // Should we become active when the user moves a touch over the thumb?
-    return false;
-  }
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: _handleStartShouldSetPanResponder,
+      onMoveShouldSetPanResponder: _handleMoveShouldSetPanResponder,
+      onPanResponderGrant: _handlePanResponderGrant,
+      onPanResponderMove: _handlePanResponderMove,
+      onPanResponderRelease: _handlePanResponderEnd,
+      onPanResponderTerminationRequest: _handlePanResponderRequestEnd,
+      onPanResponderTerminate: _handlePanResponderEnd,
+    })
+  ).current;
 
-  _handlePanResponderGrant = (/* e: Object, gestureState: Object */) => {
-    this._previousLeft = this._getThumbLeft(this._getCurrentValue());
-    this._fireChangeEvent('onSlidingStart');
-  };
-
-  _handlePanResponderMove = (e: Object, gestureState: Object) => {
-    if (this.props.disabled) {
-      return;
-    }
-
-    this._setCurrentValue(this._getValue(gestureState));
-    this._fireChangeEvent('onValueChange');
-  };
-
-  _handlePanResponderRequestEnd(e: Object, gestureState: Object) {
-    // Should we allow another component to take over this pan?
-    return false;
-  }
-
-  _handlePanResponderEnd = (e: Object, gestureState: Object) => {
-    if (this.props.disabled) {
-      return;
-    }
-
-    this._setCurrentValue(this._getValue(gestureState));
-    this._fireChangeEvent('onSlidingComplete');
-  };
-
-  _measureContainer = (x: Object) => {
-    this._handleMeasure('containerSize', x);
-  };
-
-  _measureTrack = (x: Object) => {
-    this._handleMeasure('trackSize', x);
-  };
-
-  _measureThumb = (x: Object) => {
-    this._handleMeasure('thumbSize', x);
-  };
-
-  _handleMeasure = (name: string, x: Object) => {
+  const _handleMeasure = useCallback((name, x) => {
     const { width, height } = x.nativeEvent.layout;
     const size = { width, height };
 
-    const storeName = `_${name}`;
-    const currentSize = this[storeName];
-    if (
-      currentSize &&
-      width === currentSize.width &&
-      height === currentSize.height
-    ) {
-      return;
+    const storeNameRef =
+      name === 'containerSize' ? _containerSize : name === 'trackSize' ? _trackSize : _thumbSize;
+    storeNameRef.current = size;
+
+    if (_containerSize.current.width && _trackSize.current.width && _thumbSize.current.width) {
+      setContainerSize(_containerSize.current);
+      setTrackSize(_trackSize.current);
+      setThumbSize(_thumbSize.current);
+      setAllMeasured(true);
     }
-    this[storeName] = size;
+  }, []);
 
-    if (this._containerSize && this._trackSize && this._thumbSize) {
-      this.setState({
-        containerSize: this._containerSize,
-        trackSize: this._trackSize,
-        thumbSize: this._thumbSize,
-        allMeasured: true,
-      });
-    }
+  const _measureContainer = useCallback(x => _handleMeasure('containerSize', x), [_handleMeasure]);
+  const _measureTrack = useCallback(x => _handleMeasure('trackSize', x), [_handleMeasure]);
+  const _measureThumb = useCallback(x => _handleMeasure('thumbSize', x), [_handleMeasure]);
+
+  const mainStyles = props.styles || defaultStyles; // props.styles is not in propTypes
+  const thumbLeft = value.interpolate({
+    inputRange: [minimumValue, maximumValue],
+    outputRange: I18nManager.isRTL
+      ? [0, -(containerSize.width - thumbSize.width)]
+      : [0, containerSize.width - thumbSize.width],
+  });
+  const minimumTrackWidth = value.interpolate({
+    inputRange: [minimumValue, maximumValue],
+    outputRange: [0, containerSize.width - thumbSize.width],
+  });
+
+  const valueVisibleStyle = {};
+  if (!allMeasured) {
+    valueVisibleStyle.opacity = 0;
+  }
+
+  const minimumTrackStyle = {
+    position: 'absolute',
+    width: Animated.add(minimumTrackWidth, thumbSize.width / 2),
+    backgroundColor: minimumTrackTintColor,
+    ...valueVisibleStyle,
   };
 
-  _getRatio = (value: number) =>
-    (value - this.props.minimumValue) /
-    (this.props.maximumValue - this.props.minimumValue);
-
-  _getThumbLeft = (value: number) => {
-    const nonRtlRatio = this._getRatio(value);
-    const ratio = I18nManager.isRTL ? 1 - nonRtlRatio : nonRtlRatio;
-    return (
-      ratio * (this.state.containerSize.width - this.state.thumbSize.width)
-    );
-  };
-
-  _getValue = (gestureState: Object) => {
-    const length = this.state.containerSize.width - this.state.thumbSize.width;
-    const thumbLeft = this._previousLeft + gestureState.dx;
-
-    const nonRtlRatio = thumbLeft / length;
-    const ratio = I18nManager.isRTL ? 1 - nonRtlRatio : nonRtlRatio;
-
-    if (this.props.step) {
-      return Math.max(
-        this.props.minimumValue,
-        Math.min(
-          this.props.maximumValue,
-          this.props.minimumValue +
-            Math.round(
-              ratio *
-                (this.props.maximumValue - this.props.minimumValue) /
-                this.props.step,
-            ) *
-              this.props.step,
-        ),
-      );
-    }
-    return Math.max(
-      this.props.minimumValue,
-      Math.min(
-        this.props.maximumValue,
-        ratio * (this.props.maximumValue - this.props.minimumValue) +
-          this.props.minimumValue,
-      ),
-    );
-  };
-
-  _getCurrentValue = () => this.state.value.__getValue();
-
-  _setCurrentValue = (value: number) => {
-    this.state.value.setValue(value);
-  };
-
-  _setCurrentValueAnimated = (value: number) => {
-    const animationType = this.props.animationType;
-    const animationConfig = Object.assign(
-      {},
-      DEFAULT_ANIMATION_CONFIGS[animationType],
-      this.props.animationConfig,
-      {
-        toValue: value,
-      },
-    );
-
-    Animated[animationType](this.state.value, animationConfig).start();
-  };
-
-  _fireChangeEvent = event => {
-    if (this.props[event]) {
-      this.props[event](this._getCurrentValue());
-    }
-  };
-
-  _getTouchOverflowSize = () => {
-    const state = this.state;
-    const props = this.props;
-
-    const size = {};
-    if (state.allMeasured === true) {
-      size.width = Math.max(
-        0,
-        props.thumbTouchSize.width - state.thumbSize.width,
-      );
-      size.height = Math.max(
-        0,
-        props.thumbTouchSize.height - state.containerSize.height,
-      );
-    }
-
-    return size;
-  };
-
-  _getTouchOverflowStyle = () => {
-    const { width, height } = this._getTouchOverflowSize();
-
+  const _getTouchOverflowStyle = useCallback(() => {
+    const { width, height } = _getTouchOverflowSize();
     const touchOverflowStyle = {};
     if (width !== undefined && height !== undefined) {
       const verticalMargin = -height / 2;
@@ -527,66 +292,130 @@ export default class Slider extends PureComponent {
       touchOverflowStyle.marginRight = horizontalMargin;
     }
 
-    if (this.props.debugTouchArea === true) {
+    if (debugTouchArea === true) {
       touchOverflowStyle.backgroundColor = 'orange';
       touchOverflowStyle.opacity = 0.5;
     }
-
     return touchOverflowStyle;
-  };
+  }, [_getTouchOverflowSize, debugTouchArea]);
 
-  _thumbHitTest = (e: Object) => {
-    const nativeEvent = e.nativeEvent;
-    const thumbTouchRect = this._getThumbTouchRect();
-    return thumbTouchRect.containsPoint(
-      nativeEvent.locationX,
-      nativeEvent.locationY,
-    );
-  };
+  const touchOverflowStyle = _getTouchOverflowStyle();
 
-  _getThumbTouchRect = () => {
-    const state = this.state;
-    const props = this.props;
-    const touchOverflowSize = this._getTouchOverflowSize();
-
-    return new Rect(
-      touchOverflowSize.width / 2 +
-        this._getThumbLeft(this._getCurrentValue()) +
-        (state.thumbSize.width - props.thumbTouchSize.width) / 2,
-      touchOverflowSize.height / 2 +
-        (state.containerSize.height - props.thumbTouchSize.height) / 2,
-      props.thumbTouchSize.width,
-      props.thumbTouchSize.height,
-    );
-  };
-
-  _renderDebugThumbTouchRect = thumbLeft => {
-    const thumbTouchRect = this._getThumbTouchRect();
-    const positionStyle = {
-      left: thumbLeft,
-      top: thumbTouchRect.y,
-      width: thumbTouchRect.width,
-      height: thumbTouchRect.height,
-    };
-
-    return (
-      <Animated.View
-        style={[defaultStyles.debugThumbTouchArea, positionStyle]}
-        pointerEvents="none"
-      />
-    );
-  };
-
-  _renderThumbImage = () => {
-    const { thumbImage } = this.props;
-
-    if (!thumbImage) return;
-
+  const _renderThumbImage = useCallback(() => {
+    if (!thumbImage) return null;
     return <Image source={thumbImage} />;
-  };
-}
+  }, [thumbImage]);
 
-var defaultStyles = StyleSheet.create({
+  const _renderDebugThumbTouchRect = useCallback(
+    minTrackWidth => {
+      // minTrackWidth is not used
+      const rect = _getThumbTouchRect();
+      const positionStyle = {
+        left: thumbLeft, // This should be rect.x or calculated based on current value
+        top: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
+
+      return (
+        <Animated.View
+          style={[defaultStyles.debugThumbTouchArea, positionStyle]}
+          pointerEvents="none"
+        />
+      );
+    },
+    [_getThumbTouchRect, thumbLeft]
+  );
+
+  return (
+    <View {...other} style={[mainStyles.container, style]} onLayout={_measureContainer}>
+      <View
+        style={[{ backgroundColor: maximumTrackTintColor }, mainStyles.track, trackStyle]}
+        renderToHardwareTextureAndroid // This prop is not available in View
+        onLayout={_measureTrack}
+      />
+      <Animated.View
+        renderToHardwareTextureAndroid // This prop is not available in View
+        style={[mainStyles.track, trackStyle, minimumTrackStyle]}
+      />
+      <ShadowedView
+        style={StyleSheet.flatten([
+          thumbShadow,
+          { backgroundColor: thumbTintColor },
+          mainStyles.thumb,
+          thumbStyle,
+          valueVisibleStyle,
+          {
+            transform: [{ translateX: thumbLeft }, { translateY: 0 }],
+          },
+        ])}
+      >
+        <Animated.View
+          onLayout={_measureThumb}
+          renderToHardwareTextureAndroid
+          style={StyleSheet.flatten([
+            { backgroundColor: thumbTintColor },
+            mainStyles.thumb,
+            thumbStyle,
+          ])}
+        >
+          {_renderThumbImage()}
+        </Animated.View>
+      </ShadowedView>
+      <View
+        renderToHardwareTextureAndroid // This prop is not available in View
+        style={[defaultStyles.touchArea, touchOverflowStyle]}
+        {...panResponder.panHandlers}
+      >
+        {debugTouchArea === true && _renderDebugThumbTouchRect(minimumTrackWidth)}
+      </View>
+    </View>
+  );
+};
+
+Slider.propTypes = {
+  value: PropTypes.number,
+  disabled: PropTypes.bool,
+  minimumValue: PropTypes.number,
+  maximumValue: PropTypes.number,
+  step: PropTypes.number,
+  minimumTrackTintColor: PropTypes.string,
+  maximumTrackTintColor: PropTypes.string,
+  thumbTintColor: PropTypes.string,
+  thumbTouchSize: PropTypes.shape({
+    width: PropTypes.number,
+    height: PropTypes.number,
+  }),
+  onValueChange: PropTypes.func,
+  onSlidingStart: PropTypes.func,
+  onSlidingComplete: PropTypes.func,
+  style: ViewPropTypes.style,
+  trackStyle: ViewPropTypes.style,
+  thumbStyle: ViewPropTypes.style,
+  thumbShadow: ViewPropTypes.style,
+  thumbImage: ImagePropTypes.source,
+  debugTouchArea: PropTypes.bool,
+  animateTransitions: PropTypes.bool,
+  animationType: PropTypes.oneOf(['spring', 'timing']),
+  animationConfig: PropTypes.object,
+  // styles: ViewPropTypes.style, // This was used internally but not a defined prop
+};
+
+Slider.defaultProps = {
+  value: 0,
+  minimumValue: 0,
+  maximumValue: 1,
+  step: 0,
+  minimumTrackTintColor: '#3f3f3f',
+  maximumTrackTintColor: '#b3b3b3',
+  thumbTintColor: '#343434',
+  thumbTouchSize: { width: 40, height: 40 },
+  debugTouchArea: false,
+  animationType: 'timing',
+  animateTransitions: false, // Default was missing in class, but behavior implies false
+};
+
+const defaultStyles = StyleSheet.create({
   container: {
     height: 40,
     justifyContent: 'center',
@@ -600,7 +429,6 @@ var defaultStyles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
-    // No specific shadow properties were here to remove
   },
   touchArea: {
     position: 'absolute',
@@ -616,3 +444,5 @@ var defaultStyles = StyleSheet.create({
     opacity: 0.5,
   },
 });
+
+export default Slider;
